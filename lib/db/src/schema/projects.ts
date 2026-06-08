@@ -69,6 +69,7 @@ export const projectsTable = pgTable("projects", {
   isInternal: boolean("is_internal").notNull().default(false),
   coreProjectId: text("core_project_id").unique(),
   coreProjectNumber: text("core_project_number"),
+  archivedAt: timestamp("archived_at"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });

@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { Link } from "wouter";
-import { Plus, FileCheck, DollarSign, Clock, X, GripVertical, Briefcase, RefreshCw, UserPlus, Pencil } from "lucide-react";
+import { Link, useLocation } from "wouter";
+import { Plus, FileCheck, DollarSign, Clock, X, GripVertical, Briefcase, RefreshCw, UserPlus, Pencil, Archive, ArchiveRestore, Trash2, MoreHorizontal } from "lucide-react";
 import { useListProjects, useCreateProject, useListClients } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -9,6 +9,13 @@ import { Badge } from "@/components/ui/badge";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -105,6 +112,7 @@ export default function Projects() {
   const createProject = useCreateProject();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [, navigate] = useLocation();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [formData, setFormData] = useState({ ...DEFAULT_FORM });
   const [phases, setPhases] = useState<PhaseRow[]>([]);
@@ -114,6 +122,47 @@ export default function Projects() {
   const [newMember, setNewMember] = useState({ name: "", role: "designer" });
   const [renameProject, setRenameProject] = useState<{ id: string; name: string } | null>(null);
   const [renameInput, setRenameInput] = useState("");
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
+  const [showArchived, setShowArchived] = useState(false);
+
+  const archiveProjectMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const r = await fetch(`/api/projects/${id}/archive`, { method: "PUT" });
+      if (!r.ok) throw new Error("Failed to archive project");
+      return r.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
+      toast({ title: "Project archived" });
+    },
+    onError: () => toast({ title: "Failed to archive project", variant: "destructive" }),
+  });
+
+  const unarchiveProjectMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const r = await fetch(`/api/projects/${id}/unarchive`, { method: "PUT" });
+      if (!r.ok) throw new Error("Failed to unarchive project");
+      return r.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
+      toast({ title: "Project restored" });
+    },
+    onError: () => toast({ title: "Failed to restore project", variant: "destructive" }),
+  });
+
+  const deleteProjectMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const r = await fetch(`/api/projects/${id}`, { method: "DELETE" });
+      if (!r.ok) throw new Error("Failed to delete project");
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
+      setDeleteTarget(null);
+      toast({ title: "Project deleted" });
+    },
+    onError: () => toast({ title: "Failed to delete project", variant: "destructive" }),
+  });
 
   const renameProjectMutation = useMutation({
     mutationFn: async ({ id, name }: { id: string; name: string }) => {
@@ -247,7 +296,10 @@ export default function Projects() {
     return m[s] || m.cancelled;
   };
 
-  const filtered = filter === "all" ? (projects as any[]) : (projects as any[]).filter((p) => p.status === filter);
+  const allProjects = projects as any[];
+  const archivedCount = allProjects.filter((p) => p.archivedAt).length;
+  const activeProjects = showArchived ? allProjects : allProjects.filter((p) => !p.archivedAt);
+  const filtered = filter === "all" ? activeProjects : activeProjects.filter((p) => p.status === filter);
   const usedSuggestions = new Set(phases.map((p) => p.name.toLowerCase()));
 
   return (
@@ -553,16 +605,29 @@ export default function Projects() {
       </Dialog>
 
       {/* Status filters */}
-      <div className="flex gap-2 flex-wrap">
+      <div className="flex gap-2 flex-wrap items-center">
         {["all","active","on_hold","completed","cancelled"].map((s) => (
           <button key={s} onClick={() => setFilter(s)}
             className={`text-sm px-3 py-1.5 rounded-md transition-colors ${filter === s ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground hover:bg-muted"}`}>
             {s === "all" ? "All" : s === "on_hold" ? "On Hold" : s.charAt(0).toUpperCase() + s.slice(1)}
             {" "}<span className="text-xs opacity-70">
-              ({s === "all" ? (projects as any[]).length : (projects as any[]).filter((p: any) => p.status === s).length})
+              ({s === "all" ? activeProjects.length : activeProjects.filter((p: any) => p.status === s).length})
             </span>
           </button>
         ))}
+        {archivedCount > 0 && (
+          <>
+            <div className="w-px h-5 bg-border mx-1" />
+            <button
+              onClick={() => setShowArchived(!showArchived)}
+              className={`text-sm px-3 py-1.5 rounded-md transition-colors flex items-center gap-1.5 ${showArchived ? "bg-muted text-foreground" : "text-muted-foreground hover:text-foreground hover:bg-muted"}`}
+            >
+              <Archive className="h-3.5 w-3.5" />
+              Archived
+              <span className="text-xs opacity-70">({archivedCount})</span>
+            </button>
+          </>
+        )}
       </div>
 
       {isLoading ? (
@@ -577,9 +642,10 @@ export default function Projects() {
           {filtered.map((project: any) => {
             const pct = project.budgetedHours > 0 ? (project.loggedHours / project.budgetedHours) * 100 : 0;
             const over = pct > 90;
+            const isArchived = !!project.archivedAt;
             return (
-              <Link key={project.id} href={`/projects/${project.id}`}>
-                <Card className="h-full hover:-translate-y-0.5 transition-all cursor-pointer overflow-hidden border-l-[5px] group/card"
+              <div key={project.id} onClick={() => navigate(`/projects/${project.id}`)} className="cursor-pointer">
+                <Card className={`h-full hover:-translate-y-0.5 transition-all cursor-pointer overflow-hidden border-l-[5px] group/card ${isArchived ? "opacity-60" : ""}`}
                   style={{ borderLeftColor: project.color || "var(--primary)" }}>
                   <div className="p-5 flex flex-col gap-3 h-full">
                     <div className="flex justify-between items-start gap-2">
@@ -604,9 +670,72 @@ export default function Projects() {
                           {project.clientName || "Internal"}
                         </p>
                       </div>
-                      <Badge variant="outline" className={`shrink-0 text-[10px] px-1.5 border-transparent ${statusColor(project.status)}`}>
-                        {project.status.replace("_", " ").toUpperCase()}
-                      </Badge>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        {isArchived && (
+                          <Badge variant="outline" className="text-[10px] px-1.5 border-transparent bg-gray-500/15 text-gray-400">
+                            ARCHIVED
+                          </Badge>
+                        )}
+                        {!isArchived && (
+                          <Badge variant="outline" className={`text-[10px] px-1.5 border-transparent ${statusColor(project.status)}`}>
+                            {project.status.replace("_", " ").toUpperCase()}
+                          </Badge>
+                        )}
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <button
+                              onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                              className="opacity-0 group-hover/card:opacity-100 transition-opacity p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted"
+                            >
+                              <MoreHorizontal className="h-4 w-4" />
+                            </button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+                            <DropdownMenuItem
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setRenameProject({ id: project.id, name: project.name });
+                                setRenameInput(project.name);
+                              }}
+                            >
+                              <Pencil className="mr-2 h-4 w-4" />
+                              Rename
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            {isArchived ? (
+                              <DropdownMenuItem
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  unarchiveProjectMutation.mutate(project.id);
+                                }}
+                              >
+                                <ArchiveRestore className="mr-2 h-4 w-4" />
+                                Restore from Archive
+                              </DropdownMenuItem>
+                            ) : (
+                              <DropdownMenuItem
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  archiveProjectMutation.mutate(project.id);
+                                }}
+                              >
+                                <Archive className="mr-2 h-4 w-4" />
+                                Archive
+                              </DropdownMenuItem>
+                            )}
+                            <DropdownMenuItem
+                              className="text-destructive focus:text-destructive"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setDeleteTarget({ id: project.id, name: project.name });
+                              }}
+                            >
+                              <Trash2 className="mr-2 h-4 w-4" />
+                              Delete
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
                     </div>
 
                     <div className="flex flex-wrap gap-1.5">
@@ -648,11 +777,32 @@ export default function Projects() {
                     </div>
                   </div>
                 </Card>
-              </Link>
+              </div>
             );
           })}
         </div>
       )}
+
+      {/* Delete confirmation dialog */}
+      <AlertDialog open={!!deleteTarget} onOpenChange={(o) => { if (!o) setDeleteTarget(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete "{deleteTarget?.name}"?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete this project along with all its phases, time entries, allocations, invoices, and expenses. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => deleteTarget && deleteProjectMutation.mutate(deleteTarget.id)}
+            >
+              {deleteProjectMutation.isPending ? "Deleting…" : "Delete Project"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

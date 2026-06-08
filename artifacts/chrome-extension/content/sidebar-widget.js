@@ -431,7 +431,8 @@
 
         html += `
           <div class="tp-panel-card tp-draggable" draggable="true"
-               data-drag-title="${esc(dragTitle)}" data-drag-color="${safeCol}">
+               data-drag-title="${esc(dragTitle)}" data-drag-color="${safeCol}"
+               data-drag-project-id="${project.id}" data-drag-phase-id="">
             <div class="tp-panel-card-header">
               <span class="tp-panel-card-dot" style="background:${safeCol}"></span>
               <span class="tp-panel-card-name">${esc(project.name)}</span>
@@ -471,7 +472,8 @@
             const phaseDragTitle = 'FOCUS: ' + project.name + ' - ' + phName;
             html += `
               <div class="tp-panel-phase-row tp-draggable" draggable="true"
-                   data-drag-title="${esc(phaseDragTitle)}" data-drag-color="${safeCol}">
+                   data-drag-title="${esc(phaseDragTitle)}" data-drag-color="${safeCol}"
+                   data-drag-project-id="${project.id}" data-drag-phase-id="${phaseId}">
                 <span class="tp-panel-phase-border" style="border-color:${safeCol}"></span>
                 <span class="tp-panel-phase-label">${esc(phName)}</span>
                 <span class="tp-panel-phase-hours">${phDisplay}</span>
@@ -556,23 +558,29 @@
 
           const title = el.dataset.dragTitle || 'FOCUS:';
           const color = el.dataset.dragColor || '#6366f1';
+          const projectId = el.dataset.dragProjectId || '';
+          const phaseId = el.dataset.dragPhaseId || '';
           e.dataTransfer.setData('text/plain', title);
           e.dataTransfer.effectAllowed = 'copy';
 
-          // Create a custom drag image
+          // Mark element as actively dragging for visual feedback
+          el.classList.add('tp-dragging');
+
+          // Create a custom drag image shaped like a 30-min calendar block
           const ghost = document.createElement('div');
           ghost.className = 'tp-drag-ghost';
-          ghost.textContent = title;
-          ghost.style.background = color;
+          ghost.innerHTML = `<span class="tp-drag-ghost-bar" style="background:${color}"></span>` +
+                            `<span class="tp-drag-ghost-title">${title}</span>`;
           document.body.appendChild(ghost);
-          e.dataTransfer.setDragImage(ghost, 0, 0);
+          e.dataTransfer.setDragImage(ghost, 10, 10);
           setTimeout(() => ghost.remove(), 0);
 
-          ns.dragToCreate.setDragData({ title, projectColor: color });
+          ns.dragToCreate.setDragData({ title, projectColor: color, projectId, phaseId });
         });
 
         el.addEventListener('dragend', (e) => {
           e.stopPropagation();
+          el.classList.remove('tp-dragging');
           if (ns.dragToCreate) ns.dragToCreate.clearDragData();
         });
       });

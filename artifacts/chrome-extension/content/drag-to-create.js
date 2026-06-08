@@ -6,7 +6,7 @@
 // grid, waits for GCal's quick-create popup, and fills in the title.
 
 (function (ns) {
-  let dragData = null;       // { title, projectColor }
+  let dragData = null;       // { title, projectColor, projectId, phaseId }
   let indicatorEl = null;    // visual feedback element during drag
 
   ns.dragToCreate = {
@@ -54,13 +54,16 @@
     e.stopPropagation();
 
     const title = dragData.title;
+    const projectId = dragData.projectId || '';
+    const phaseId = dragData.phaseId || '';
+    const projectColor = dragData.projectColor || '';
     const dropX = e.clientX;
     const dropY = e.clientY;
 
     cleanup();
 
     // Simulate a click on the calendar grid to trigger GCal's quick-create popup
-    simulateClickAndFill(dropX, dropY, title);
+    simulateClickAndFill(dropX, dropY, title, projectId, phaseId, projectColor);
   }
 
   function handleDragLeave(e) {
@@ -81,7 +84,7 @@
 
   /* ── Simulate click + fill title ── */
 
-  function simulateClickAndFill(x, y, title) {
+  function simulateClickAndFill(x, y, title, projectId, phaseId, projectColor) {
     // Hide the panel momentarily so elementFromPoint hits the grid
     const panel = document.getElementById('tp-panel');
     const indicator = document.querySelector('.tp-drag-indicator');
@@ -116,12 +119,13 @@
       target.dispatchEvent(new MouseEvent('click', { ...opts, buttons: 0 }));
 
       // Now watch for GCal's quick-create popup to appear and fill the title
-      watchForPopupAndFill(title);
+      watchForPopupAndFill(title, projectId, phaseId, projectColor);
     }, 50);
   }
 
   // Watch the DOM for GCal's quick-create popup, then fill the title input.
-  function watchForPopupAndFill(title) {
+  // After a successful fill, auto-assign the event to the project/phase.
+  function watchForPopupAndFill(title, projectId, phaseId, projectColor) {
     let attempts = 0;
     const maxAttempts = 40; // ~2 seconds
     const interval = 50;
@@ -134,6 +138,8 @@
       const filled = tryFillTitle(title);
 
       if (filled) {
+        // Auto-assign the event to the project/phase it was dragged from
+        autoAssignDraggedEvent(title, projectId, phaseId, projectColor);
         return; // Success
       }
 
@@ -149,6 +155,30 @@
 
     // Start checking after a brief initial delay
     setTimeout(check, 100);
+  }
+
+  // After a FOCUS block is created, assign it to the project/phase.
+  // We generate a temporary eventKey from the title since the event doesn't
+  // have a GCal ID yet — auto-match will reconcile on next refresh.
+  function autoAssignDraggedEvent(title, projectId, phaseId, projectColor) {
+    if (!projectId || !ns.storage) return;
+
+    // Build a temporary event key — auto-match will re-key when GCal creates the real event
+    const tempKey = 'drag_' + title.replace(/[^a-zA-Z0-9]/g, '_') + '_' + Date.now();
+    const today = new Date();
+    const dateStr = today.getFullYear() + '-' +
+      String(today.getMonth() + 1).padStart(2, '0') + '-' +
+      String(today.getDate()).padStart(2, '0');
+
+    ns.storage.assignEvent(tempKey, projectId, phaseId || null, {
+      durationHours: 0.5,
+      eventTitle: title,
+      eventDate: dateStr,
+    }).then(() => {
+      console.log('[TimePalette] Auto-assigned drag event:', title, '→ project:', projectId, 'phase:', phaseId);
+    }).catch((err) => {
+      console.warn('[TimePalette] Failed to auto-assign drag event:', err);
+    });
   }
 
   function tryFillTitle(title) {
@@ -363,8 +393,9 @@
 
     indicatorEl.textContent = timeStr;
     indicatorEl.style.display = 'flex';
+    // Position below and right of cursor so it doesn't overlap the drag ghost
     indicatorEl.style.left = (e.clientX + 16) + 'px';
-    indicatorEl.style.top = (e.clientY - 14) + 'px';
+    indicatorEl.style.top = (e.clientY + 24) + 'px';
   }
 
   function removeIndicator() {

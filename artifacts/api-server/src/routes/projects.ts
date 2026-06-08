@@ -9,6 +9,7 @@ import {
   invoicesTable,
   allocationsTable,
   expensesTable,
+  gcalAssignmentsTable,
 } from "@workspace/db/schema";
 import { randomUUID } from "crypto";
 import { and, eq, sql } from "drizzle-orm";
@@ -56,6 +57,7 @@ function formatProject(p: typeof projectsTable.$inferSelect, clientName: string 
     paymentStatus: p.paymentStatus,
     coreProjectId: p.coreProjectId,
     coreProjectNumber: p.coreProjectNumber,
+    archivedAt: p.archivedAt ? p.archivedAt.toISOString() : null,
     createdAt: p.createdAt.toISOString(),
   };
 }
@@ -351,6 +353,51 @@ router.delete("/projects/:id/members/:memberId", async (req, res) => {
   res.status(204).end();
 });
 
+// ── Archive / unarchive project ──
+router.put("/projects/:id/archive", async (req, res) => {
+  const updated = await db
+    .update(projectsTable)
+    .set({ archivedAt: new Date(), updatedAt: new Date() })
+    .where(eq(projectsTable.id, req.params.id))
+    .returning();
+
+  if (!updated[0]) {
+    res.status(404).json({ error: "Project not found" });
+    return;
+  }
+  const p = updated[0];
+  const clientRow = p.clientId
+    ? await db.select().from(clientsTable).where(eq(clientsTable.id, p.clientId)).limit(1)
+    : [];
+  const logged = await db
+    .select({ total: sql<string>`coalesce(sum(${timeBlocksTable.hours}), 0)` })
+    .from(timeBlocksTable)
+    .where(eq(timeBlocksTable.projectId, p.id));
+  res.json(formatProject(p, clientRow[0]?.name ?? null, parseFloat(logged[0]?.total ?? "0"), 0));
+});
+
+router.put("/projects/:id/unarchive", async (req, res) => {
+  const updated = await db
+    .update(projectsTable)
+    .set({ archivedAt: null, updatedAt: new Date() })
+    .where(eq(projectsTable.id, req.params.id))
+    .returning();
+
+  if (!updated[0]) {
+    res.status(404).json({ error: "Project not found" });
+    return;
+  }
+  const p = updated[0];
+  const clientRow = p.clientId
+    ? await db.select().from(clientsTable).where(eq(clientsTable.id, p.clientId)).limit(1)
+    : [];
+  const logged = await db
+    .select({ total: sql<string>`coalesce(sum(${timeBlocksTable.hours}), 0)` })
+    .from(timeBlocksTable)
+    .where(eq(timeBlocksTable.projectId, p.id));
+  res.json(formatProject(p, clientRow[0]?.name ?? null, parseFloat(logged[0]?.total ?? "0"), 0));
+});
+
 // ── Delete project (cascade) ──
 router.delete("/projects/:id", async (req, res) => {
   const projectId = req.params.id;
@@ -362,16 +409,22 @@ router.delete("/projects/:id", async (req, res) => {
     return;
   }
 
-  // Cascade delete in FK-safe order
-  await db.delete(expensesTable).where(eq(expensesTable.projectId, projectId));
-  await db.delete(timeBlocksTable).where(eq(timeBlocksTable.projectId, projectId));
-  await db.delete(allocationsTable).where(eq(allocationsTable.projectId, projectId));
-  await db.delete(projectMembersTable).where(eq(projectMembersTable.projectId, projectId));
-  await db.delete(invoicesTable).where(eq(invoicesTable.projectId, projectId));
-  await db.delete(phasesTable).where(eq(phasesTable.projectId, projectId));
-  await db.delete(projectsTable).where(eq(projectsTable.id, projectId));
+  try {
+    // Cascade delete in FK-safe order
+    await db.delete(gcalAssignmentsTable).where(eq(gcalAssignmentsTable.projectId, projectId));
+    await db.delete(expensesTable).where(eq(expensesTable.projectId, projectId));
+    await db.delete(timeBlocksTable).where(eq(timeBlocksTable.projectId, projectId));
+    await db.delete(allocationsTable).where(eq(allocationsTable.projectId, projectId));
+    await db.delete(projectMembersTable).where(eq(projectMembersTable.projectId, projectId));
+    await db.delete(invoicesTable).where(eq(invoicesTable.projectId, projectId));
+    await db.delete(phasesTable).where(eq(phasesTable.projectId, projectId));
+    await db.delete(projectsTable).where(eq(projectsTable.id, projectId));
 
-  res.status(204).send();
+    res.status(204).send();
+  } catch (err: any) {
+    console.error("[projects] Delete cascade failed:", err.message);
+    res.status(500).json({ error: "Failed to delete project" });
+  }
 });
 
 export default router;

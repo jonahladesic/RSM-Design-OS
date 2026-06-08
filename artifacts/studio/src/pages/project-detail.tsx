@@ -4,7 +4,7 @@ import { format } from "date-fns";
 import {
   ChevronLeft, FileCheck, DollarSign, Clock, Plus, Check, X,
   ChevronDown, ChevronRight as ChevronRightIcon, Pencil, Trash2,
-  Users, Briefcase, RefreshCw, UserCircle,
+  Users, Briefcase, RefreshCw, UserCircle, Archive, ArchiveRestore,
 } from "lucide-react";
 import {
   useGetProject, useListTimeBlocks, useListExpenses, useListInvoices,
@@ -944,11 +944,42 @@ export default function ProjectDetail() {
                   </Select>
                 </div>
               </Card>
-              <Card className="p-5 grid gap-4 border-destructive/30">
-                <h3 className="font-semibold text-destructive">Danger Zone</h3>
+              <Card className="p-5 grid gap-4 border-border">
+                <h3 className="font-semibold">Project Actions</h3>
                 <div className="flex items-center justify-between">
                   <div>
-                    <Label>Delete Project</Label>
+                    <Label>{(project as any)?.archivedAt ? "Restore Project" : "Archive Project"}</Label>
+                    <p className="text-xs text-muted-foreground">
+                      {(project as any)?.archivedAt
+                        ? "Restore this project to your active projects list."
+                        : "Move this project out of your active list. It can be restored later."}
+                    </p>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={async () => {
+                      const action = (project as any)?.archivedAt ? "unarchive" : "archive";
+                      try {
+                        await fetch(`/api/projects/${id}/${action}`, { method: "PUT" });
+                        toast({ title: action === "archive" ? "Project archived" : "Project restored" });
+                        queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
+                        queryClient.invalidateQueries({ queryKey: [`/api/projects/${id}`] });
+                      } catch {
+                        toast({ title: `Failed to ${action} project`, variant: "destructive" });
+                      }
+                    }}
+                  >
+                    {(project as any)?.archivedAt ? (
+                      <><ArchiveRestore className="mr-1.5 h-3.5 w-3.5" /> Restore</>
+                    ) : (
+                      <><Archive className="mr-1.5 h-3.5 w-3.5" /> Archive</>
+                    )}
+                  </Button>
+                </div>
+                <div className="border-t pt-4 flex items-center justify-between">
+                  <div>
+                    <Label className="text-destructive">Delete Project</Label>
                     <p className="text-xs text-muted-foreground">Permanently delete this project and all its data.</p>
                   </div>
                   <AlertDialog>
