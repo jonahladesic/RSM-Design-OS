@@ -4,6 +4,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
+const TEST_ACCOUNTS = [
+  { label: "Admin", email: "jonahlad@gmail.com" },
+  { label: "PM", email: "sarah@margin.test" },
+  { label: "Designer", email: "james@margin.test" },
+];
+
 export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -89,6 +95,25 @@ export default function Login() {
             {loading ? "Signing in..." : "Sign in"}
           </Button>
         </form>
+
+        <div className="mt-6 border-t pt-4">
+          <p className="text-xs text-muted-foreground mb-3 text-center">Test accounts</p>
+          <div className="flex gap-2">
+            {TEST_ACCOUNTS.map((acct) => (
+              <button
+                key={acct.email}
+                type="button"
+                onClick={() => { setEmail(acct.email); setPassword("password123"); }}
+                className="flex-1 text-xs px-2 py-1.5 rounded border border-border text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors"
+              >
+                {acct.label}
+              </button>
+            ))}
+          </div>
+          <p className="text-[10px] text-muted-foreground/60 text-center mt-2">
+            Password: password123
+          </p>
+        </div>
       </div>
     </div>
   );

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link, useLocation } from "wouter";
-import { Plus, FileCheck, DollarSign, Clock, X, GripVertical, Briefcase, RefreshCw, UserPlus, Pencil, Archive, ArchiveRestore, Trash2, MoreHorizontal } from "lucide-react";
-import { useListProjects, useCreateProject, useListClients } from "@workspace/api-client-react";
+import { Plus, X, GripVertical, Pencil, Archive, ArchiveRestore, Trash2, MoreHorizontal } from "lucide-react";
+import { useListProjects, useCreateProject } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
@@ -18,8 +18,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient, useMutation } from "@tanstack/react-query";
 
@@ -41,58 +39,8 @@ interface PhaseRow {
   budgetedHours: string;
 }
 
-interface TeamMember {
-  name: string;
-  role: string;
-}
-
-function NTPBadge({ received }: { received: boolean }) {
-  return received ? (
-    <Badge variant="outline" className="gap-1 bg-emerald-500/10 text-emerald-500 border-emerald-500/20 text-[10px] px-1.5">
-      <FileCheck className="h-3 w-3" /> NTP
-    </Badge>
-  ) : (
-    <Badge variant="outline" className="gap-1 bg-amber-500/10 text-amber-500 border-amber-500/20 text-[10px] px-1.5">
-      <Clock className="h-3 w-3" /> Awaiting NTP
-    </Badge>
-  );
-}
-
-function PaymentBadge({ status }: { status: string }) {
-  const m: Record<string, { label: string; cls: string }> = {
-    paid:    { label: "Paid",    cls: "bg-emerald-500/10 text-emerald-500 border-emerald-500/20" },
-    partial: { label: "Partial", cls: "bg-orange-500/10 text-orange-500 border-orange-500/20" },
-    unpaid:  { label: "Unpaid",  cls: "bg-red-500/10 text-red-500 border-red-500/20" },
-  };
-  const s = m[status] || m.unpaid;
-  return (
-    <Badge variant="outline" className={`gap-1 text-[10px] px-1.5 ${s.cls}`}>
-      <DollarSign className="h-3 w-3" /> {s.label}
-    </Badge>
-  );
-}
-
-function WorkStatusBadge({ status }: { status: string }) {
-  if (status === "awaiting_client") {
-    return (
-      <Badge variant="outline" className="gap-1 bg-purple-500/10 text-purple-400 border-purple-500/20 text-[10px] px-1.5">
-        <RefreshCw className="h-3 w-3" /> Awaiting Client
-      </Badge>
-    );
-  }
-  return (
-    <Badge variant="outline" className="gap-1 bg-orange-500/10 text-orange-400 border-orange-500/20 text-[10px] px-1.5">
-      <Briefcase className="h-3 w-3" /> Working Internally
-    </Badge>
-  );
-}
-
 const DEFAULT_FORM = {
-  name: "", clientId: "", status: "active",
-  workStatus: "working_internally",
-  budgetAmount: "10000", color: PROJECT_COLORS[0],
-  ntpReceived: false, ntpDate: "", paymentStatus: "unpaid",
-  billingCategory: "billable",
+  name: "", budgetAmount: "10000", color: PROJECT_COLORS[0],
 };
 
 function getUniqueColor(allProjectColors: string[]): string {
@@ -108,7 +56,6 @@ function getUniqueColor(allProjectColors: string[]): string {
 
 export default function Projects() {
   const { data: projects = [], isLoading } = useListProjects();
-  const { data: clients = [] } = useListClients();
   const createProject = useCreateProject();
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -118,8 +65,6 @@ export default function Projects() {
   const [phases, setPhases] = useState<PhaseRow[]>([]);
   const [customPhase, setCustomPhase] = useState("");
   const [filter, setFilter] = useState<string>("all");
-  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
-  const [newMember, setNewMember] = useState({ name: "", role: "designer" });
   const [renameProject, setRenameProject] = useState<{ id: string; name: string } | null>(null);
   const [renameInput, setRenameInput] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
@@ -198,30 +143,17 @@ export default function Projects() {
 
   const totalPhaseHours = phases.reduce((sum, p) => sum + (parseFloat(p.budgetedHours) || 0), 0);
 
-  const addTeamMember = () => {
-    if (!newMember.name.trim()) return;
-    setTeamMembers((prev) => [...prev, { name: newMember.name.trim(), role: newMember.role }]);
-    setNewMember({ name: "", role: "designer" });
-  };
-
-  const removeTeamMember = (idx: number) => setTeamMembers((prev) => prev.filter((_, i) => i !== idx));
-
-  const resetDialog = () => {
-    setPhases([]);
-    setCustomPhase("");
-    setTeamMembers([]);
-    setNewMember({ name: "", role: "designer" });
-  };
-
   const handleDialogOpen = (open: boolean) => {
     if (open) {
       const allColors = (projects as any[]).map((p: any) => p.color).filter(Boolean);
       const color = getUniqueColor(allColors);
       setFormData({ ...DEFAULT_FORM, color });
-      resetDialog();
+      setPhases([]);
+      setCustomPhase("");
     } else {
       setFormData({ ...DEFAULT_FORM });
-      resetDialog();
+      setPhases([]);
+      setCustomPhase("");
     }
     setIsDialogOpen(open);
   };
@@ -232,68 +164,23 @@ export default function Projects() {
       {
         data: {
           name: formData.name,
-          clientId: formData.clientId || undefined,
-          status: formData.status as any,
-          workStatus: formData.workStatus as any,
+          status: "active",
           budgetAmount: Number(formData.budgetAmount),
           color: formData.color,
-          ntpReceived: formData.ntpReceived,
-          ntpDate: formData.ntpDate || undefined,
-          paymentStatus: formData.paymentStatus as any,
-          billingCategory: formData.billingCategory as any,
           phases: phases.map((p) => ({ name: p.name, budgetedHours: parseFloat(p.budgetedHours) || 0 })),
         } as any,
       },
       {
-        onSuccess: async (data: any) => {
-          const projectId = data?.id;
-          let memberFailures = 0;
-          if (projectId && teamMembers.length > 0) {
-            const results = await Promise.all(
-              teamMembers.map((m) =>
-                fetch(`/api/projects/${projectId}/members`, {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ name: m.name, role: m.role }),
-                }).then((r) => r.ok ? r : Promise.reject())
-                  .catch(() => { memberFailures++; return null; })
-              )
-            );
-            void results;
-          }
-          if (memberFailures > 0) {
-            toast({
-              title: "Project created, but some team members failed to save",
-              description: `${memberFailures} member${memberFailures !== 1 ? "s" : ""} could not be added. Open the project to retry.`,
-              variant: "destructive",
-            });
-          } else {
-            toast({
-              title: "Project created",
-              description: [
-                phases.length > 0 && `${phases.length} phase${phases.length !== 1 ? "s" : ""}`,
-                teamMembers.length > 0 && `${teamMembers.length} team member${teamMembers.length !== 1 ? "s" : ""}`,
-              ].filter(Boolean).join(" · ") || undefined,
-            });
-          }
+        onSuccess: () => {
+          toast({ title: "Project created" });
           setIsDialogOpen(false);
           setFormData({ ...DEFAULT_FORM });
-          resetDialog();
+          setPhases([]);
           queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
         },
         onError: () => toast({ title: "Failed to create project", variant: "destructive" }),
       }
     );
-  };
-
-  const statusColor = (s: string) => {
-    const m: Record<string, string> = {
-      active:    "bg-emerald-500/15 text-emerald-500",
-      on_hold:   "bg-amber-500/15 text-amber-500",
-      completed: "bg-orange-500/15 text-orange-500",
-      cancelled: "bg-gray-500/15 text-gray-400",
-    };
-    return m[s] || m.cancelled;
   };
 
   const allProjects = projects as any[];
@@ -314,82 +201,33 @@ export default function Projects() {
           <DialogTrigger asChild>
             <Button><Plus className="mr-2 h-4 w-4" />New Project</Button>
           </DialogTrigger>
-          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Create New Project</DialogTitle>
             </DialogHeader>
             <div className="grid gap-5 py-2">
-
-              {/* Basic Info */}
-              <div className="grid gap-3">
+              <div className="grid gap-2">
+                <Label>Project Name *</Label>
+                <Input value={formData.name} onChange={(e) => set("name", e.target.value)} placeholder="e.g. Acme Brand Identity" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
                 <div className="grid gap-2">
-                  <Label>Project Name *</Label>
-                  <Input value={formData.name} onChange={(e) => set("name", e.target.value)} placeholder="e.g. Acme Brand Identity" />
+                  <Label>Budget ($)</Label>
+                  <Input type="number" value={formData.budgetAmount} onChange={(e) => set("budgetAmount", e.target.value)} />
                 </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="grid gap-2">
-                    <Label>Client</Label>
-                    <Select value={formData.clientId || "none"} onValueChange={(v) => set("clientId", v === "none" ? "" : v)}>
-                      <SelectTrigger><SelectValue placeholder="No client" /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none">No client</SelectItem>
-                        {(clients as any[]).map((c: any) => (
-                          <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="grid gap-2">
-                    <Label>Budget ($)</Label>
-                    <Input type="number" value={formData.budgetAmount} onChange={(e) => set("budgetAmount", e.target.value)} />
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="grid gap-2">
-                    <Label>Work Status</Label>
-                    <Select value={formData.workStatus} onValueChange={(v) => set("workStatus", v)}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="working_internally">Working Internally</SelectItem>
-                        <SelectItem value="awaiting_client">Awaiting Client Feedback</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="grid gap-2">
-                    <Label>Color</Label>
-                    <div className="flex gap-2 flex-wrap mt-1">
-                      {PROJECT_COLORS.map((c) => {
-                        const isUsed = (projects as any[]).some((p: any) => p.color === c);
-                        return (
-                          <button key={c}
-                            className={`w-6 h-6 rounded-full border-2 transition-all ${formData.color === c ? "border-white scale-110" : "border-transparent"} ${isUsed && formData.color !== c ? "opacity-40" : ""}`}
-                            style={{ backgroundColor: c }}
-                            onClick={() => set("color", c)}
-                            title={isUsed ? "Already in use by another project" : undefined}
-                          />
-                        );
-                      })}
-                    </div>
-                  </div>
-                </div>
-                <div className="flex items-center justify-between py-1">
-                  <div>
-                    <Label>Billing Category</Label>
-                    <p className="text-xs text-muted-foreground mt-0.5">Overhead hours are tracked but not against a budget.</p>
-                  </div>
-                  <div className="flex items-center gap-2 bg-muted/50 rounded-lg p-1">
-                    <button
-                      onClick={() => set("billingCategory", "billable")}
-                      className={`text-xs px-3 py-1.5 rounded-md transition-colors ${formData.billingCategory === "billable" ? "bg-background shadow-sm font-semibold text-foreground" : "text-muted-foreground hover:text-foreground"}`}
-                    >
-                      Billable
-                    </button>
-                    <button
-                      onClick={() => set("billingCategory", "overhead")}
-                      className={`text-xs px-3 py-1.5 rounded-md transition-colors ${formData.billingCategory === "overhead" ? "bg-background shadow-sm font-semibold text-foreground" : "text-muted-foreground hover:text-foreground"}`}
-                    >
-                      Overhead
-                    </button>
+                <div className="grid gap-2">
+                  <Label>Color</Label>
+                  <div className="flex gap-2 flex-wrap mt-1">
+                    {PROJECT_COLORS.map((c) => {
+                      const isUsed = (projects as any[]).some((p: any) => p.color === c);
+                      return (
+                        <button key={c}
+                          className={`w-6 h-6 rounded-full border-2 transition-all ${formData.color === c ? "border-white scale-110" : "border-transparent"} ${isUsed && formData.color !== c ? "opacity-40" : ""}`}
+                          style={{ backgroundColor: c }}
+                          onClick={() => set("color", c)}
+                        />
+                      );
+                    })}
                   </div>
                 </div>
               </div>
@@ -397,18 +235,12 @@ export default function Projects() {
               {/* Phases */}
               <div className="border-t pt-4 grid gap-3">
                 <div className="flex items-center justify-between">
-                  <div>
-                    <Label className="text-base">Phases & Scope</Label>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      Define which phases are in scope and their hour budgets.
-                    </p>
-                  </div>
+                  <Label className="text-base">Phases</Label>
                   <span className="text-sm font-semibold text-foreground bg-muted/50 px-3 py-1 rounded-md">
-                    Total scoped: {totalPhaseHours}h
+                    {totalPhaseHours}h total
                   </span>
                 </div>
 
-                {/* Suggestions */}
                 <div className="flex flex-wrap gap-1.5">
                   {PHASE_SUGGESTIONS.filter((s) => !usedSuggestions.has(s.toLowerCase())).map((s) => (
                     <button key={s}
@@ -419,7 +251,6 @@ export default function Projects() {
                   ))}
                 </div>
 
-                {/* Added phases list */}
                 {phases.length > 0 && (
                   <div className="flex flex-col gap-2">
                     {phases.map((ph, idx) => (
@@ -428,8 +259,7 @@ export default function Projects() {
                         <span className="flex-1 text-sm font-medium">{ph.name}</span>
                         <div className="flex items-center gap-1">
                           <Input
-                            type="number"
-                            min="0"
+                            type="number" min="0"
                             value={ph.budgetedHours}
                             onChange={(e) => updatePhaseHours(idx, e.target.value)}
                             className="w-20 h-7 text-sm text-right"
@@ -444,13 +274,6 @@ export default function Projects() {
                   </div>
                 )}
 
-                {/* Running total — always visible */}
-                <div className="flex items-center justify-between px-3 py-2 rounded-lg bg-primary/5 border border-primary/10">
-                  <span className="text-sm text-muted-foreground">Total scoped</span>
-                  <span className="text-sm font-bold text-foreground">{totalPhaseHours}h</span>
-                </div>
-
-                {/* Custom phase input */}
                 <div className="flex gap-2">
                   <Input
                     placeholder="Custom phase name…"
@@ -463,107 +286,13 @@ export default function Projects() {
                     Add
                   </Button>
                 </div>
-                {phases.length === 0 && (
-                  <p className="text-xs text-muted-foreground italic">
-                    No phases added yet — click a suggestion above or type a custom phase name.
-                  </p>
-                )}
-              </div>
-
-              {/* Billing */}
-              <div className="border-t pt-4 grid gap-3">
-                <Label className="text-base">Billing Status</Label>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <Label>NTP Received</Label>
-                    <p className="text-xs text-muted-foreground">Notice to Proceed from client</p>
-                  </div>
-                  <Switch checked={formData.ntpReceived} onCheckedChange={(v) => set("ntpReceived", v)} />
-                </div>
-                {formData.ntpReceived && (
-                  <div className="grid gap-2">
-                    <Label>NTP Date</Label>
-                    <Input type="date" value={formData.ntpDate} onChange={(e) => set("ntpDate", e.target.value)} />
-                  </div>
-                )}
-                <div className="grid gap-2">
-                  <Label>Payment Status</Label>
-                  <Select value={formData.paymentStatus} onValueChange={(v) => set("paymentStatus", v)}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="unpaid">Unpaid</SelectItem>
-                      <SelectItem value="partial">Partial</SelectItem>
-                      <SelectItem value="paid">Paid</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              {/* Team */}
-              <div className="border-t pt-4 grid gap-3">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <Label className="text-base">Team</Label>
-                    <p className="text-xs text-muted-foreground mt-0.5">Assign team members to this project.</p>
-                  </div>
-                </div>
-
-                {/* Added members */}
-                {teamMembers.length > 0 && (
-                  <div className="flex flex-col gap-2">
-                    {teamMembers.map((m, idx) => (
-                      <div key={idx} className="flex items-center gap-2 bg-muted/30 rounded-lg px-3 py-2">
-                        <div className="w-7 h-7 rounded-full bg-primary/20 flex items-center justify-center text-xs font-bold text-primary shrink-0">
-                          {m.name.charAt(0).toUpperCase()}
-                        </div>
-                        <span className="flex-1 text-sm font-medium">{m.name}</span>
-                        <Badge variant="outline" className={`text-[10px] px-1.5 shrink-0 ${m.role === "lead" ? "border-primary/40 text-primary bg-primary/10" : "border-border text-muted-foreground"}`}>
-                          {m.role === "lead" ? "Project Lead" : "Designer"}
-                        </Badge>
-                        <button onClick={() => removeTeamMember(idx)} className="text-muted-foreground hover:text-destructive ml-1">
-                          <X className="h-4 w-4" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {/* Add member form */}
-                <div className="flex gap-2">
-                  <Input
-                    placeholder="Team member name…"
-                    value={newMember.name}
-                    onChange={(e) => setNewMember((m) => ({ ...m, name: e.target.value }))}
-                    onKeyDown={(e) => { if (e.key === "Enter") addTeamMember(); }}
-                    className="flex-1"
-                  />
-                  <Select value={newMember.role} onValueChange={(v) => setNewMember((m) => ({ ...m, role: v }))}>
-                    <SelectTrigger className="w-36">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="designer">Designer</SelectItem>
-                      <SelectItem value="lead">Project Lead</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <Button variant="outline" size="sm" onClick={addTeamMember} disabled={!newMember.name.trim()}>
-                    <UserPlus className="h-4 w-4" />
-                  </Button>
-                </div>
-                {teamMembers.length === 0 && (
-                  <p className="text-xs text-muted-foreground italic">No team members added yet.</p>
-                )}
               </div>
             </div>
 
             <DialogFooter>
               <Button variant="outline" onClick={() => handleDialogOpen(false)}>Cancel</Button>
               <Button onClick={handleCreate} disabled={createProject.isPending || !formData.name}>
-                {createProject.isPending ? "Creating…" : [
-                  "Create Project",
-                  phases.length > 0 && `· ${phases.length} phase${phases.length !== 1 ? "s" : ""}`,
-                  teamMembers.length > 0 && `· ${teamMembers.length} member${teamMembers.length !== 1 ? "s" : ""}`,
-                ].filter(Boolean).join(" ")}
+                {createProject.isPending ? "Creating…" : "Create Project"}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -640,47 +369,31 @@ export default function Projects() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
           {filtered.map((project: any) => {
-            const pct = project.budgetedHours > 0 ? (project.loggedHours / project.budgetedHours) * 100 : 0;
-            const over = pct > 90;
+            const budgeted = parseFloat(project.budgetedHours) || 0;
+            const logged = parseFloat(project.loggedHours) || 0;
+            const budget = parseFloat(project.budgetAmount) || 0;
+            const pct = budgeted > 0 ? (logged / budgeted) * 100 : 0;
+            const effRate = logged > 0 ? budget / logged : 0;
             const isArchived = !!project.archivedAt;
             return (
               <div key={project.id} onClick={() => navigate(`/projects/${project.id}`)} className="cursor-pointer">
-                <Card className={`h-full hover:-translate-y-0.5 transition-all cursor-pointer overflow-hidden border-l-[5px] group/card ${isArchived ? "opacity-60" : ""}`}
-                  style={{ borderLeftColor: project.color || "var(--primary)" }}>
+                <Card className={`h-full hover:-translate-y-0.5 transition-all cursor-pointer overflow-hidden group/card ${isArchived ? "opacity-60" : ""}`}>
                   <div className="p-5 flex flex-col gap-3 h-full">
                     <div className="flex justify-between items-start gap-2">
                       <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-1">
+                        <div className="flex items-center gap-2">
+                          <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: project.color || "#6b7280" }} />
                           <h3 className="font-semibold text-base line-clamp-1">{project.name}</h3>
-                          <button
-                            onClick={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              setRenameProject({ id: project.id, name: project.name });
-                              setRenameInput(project.name);
-                            }}
-                            className="opacity-0 group-hover/card:opacity-100 transition-opacity p-0.5 rounded text-muted-foreground hover:text-foreground hover:bg-muted shrink-0"
-                            title="Rename project"
-                          >
-                            <Pencil className="h-3.5 w-3.5" />
-                          </button>
                         </div>
-                        <p className="text-xs text-muted-foreground mt-0.5 truncate">
-                          {project.coreProjectNumber && <span className="font-mono mr-1">{project.coreProjectNumber}</span>}
-                          {project.clientName || "Internal"}
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {budget > 0 ? `$${budget.toLocaleString()}` : "No budget"}
+                          {effRate > 0 && ` · $${effRate.toFixed(0)}/hr`}
                         </p>
                       </div>
                       <div className="flex items-center gap-1.5 shrink-0">
-                        {isArchived && (
-                          <Badge variant="outline" className="text-[10px] px-1.5 border-transparent bg-gray-500/15 text-gray-400">
-                            ARCHIVED
-                          </Badge>
-                        )}
-                        {!isArchived && (
-                          <Badge variant="outline" className={`text-[10px] px-1.5 border-transparent ${statusColor(project.status)}`}>
-                            {project.status.replace("_", " ").toUpperCase()}
-                          </Badge>
-                        )}
+                        <Badge variant="outline" className="text-[10px] px-1.5 border-transparent">
+                          {isArchived ? "ARCHIVED" : (project.status || "active").replace("_", " ").toUpperCase()}
+                        </Badge>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <button
@@ -710,7 +423,7 @@ export default function Projects() {
                                 }}
                               >
                                 <ArchiveRestore className="mr-2 h-4 w-4" />
-                                Restore from Archive
+                                Restore
                               </DropdownMenuItem>
                             ) : (
                               <DropdownMenuItem
@@ -738,30 +451,14 @@ export default function Projects() {
                       </div>
                     </div>
 
-                    <div className="flex flex-wrap gap-1.5">
-                      {project.coreProjectId && (
-                        <Badge variant="outline" className="gap-1 bg-blue-500/10 text-blue-400 border-blue-500/20 text-[10px] px-1.5">
-                          BQE
-                        </Badge>
-                      )}
-                      {project.billingCategory === "overhead" && (
-                        <Badge variant="outline" className="gap-1 bg-slate-500/10 text-slate-400 border-slate-500/20 text-[10px] px-1.5">
-                          Overhead
-                        </Badge>
-                      )}
-                      <NTPBadge received={project.ntpReceived} />
-                      <PaymentBadge status={project.paymentStatus} />
-                      <WorkStatusBadge status={project.workStatus || "working_internally"} />
-                    </div>
-
                     <div className="flex-1" />
 
-                    {project.budgetedHours > 0 ? (
+                    {budgeted > 0 ? (
                       <div className="space-y-1">
                         <div className="flex justify-between text-xs">
                           <span className="text-muted-foreground">Hours</span>
-                          <span className={`font-medium ${over ? "text-destructive" : ""}`}>
-                            {project.loggedHours} / {project.budgetedHours}h
+                          <span className={`font-medium ${pct > 90 ? "text-destructive" : ""}`}>
+                            {logged} / {budgeted}h
                           </span>
                         </div>
                         <Progress value={Math.min(pct, 100)} className="h-1.5" />
@@ -769,12 +466,6 @@ export default function Projects() {
                     ) : (
                       <p className="text-xs text-muted-foreground italic">No phases defined</p>
                     )}
-
-                    <div className="flex justify-between items-center text-xs text-muted-foreground border-t border-border pt-2">
-                      <span className="text-xs text-muted-foreground">
-                        {project.budgetAmount ? `$${Number(project.budgetAmount).toLocaleString()} budget` : "No budget set"}
-                      </span>
-                    </div>
                   </div>
                 </Card>
               </div>
@@ -789,7 +480,7 @@ export default function Projects() {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete "{deleteTarget?.name}"?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently delete this project along with all its phases, time entries, allocations, invoices, and expenses. This action cannot be undone.
+              This will permanently delete this project along with all its phases, time entries, and allocations. This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
