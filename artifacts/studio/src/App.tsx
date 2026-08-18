@@ -9,7 +9,6 @@ import Login from "@/pages/login";
 import Dashboard from "@/pages/dashboard";
 import Projects from "@/pages/projects";
 import ProjectDetail from "@/pages/project-detail";
-import Resources from "@/pages/resources";
 import Settings from "@/pages/settings";
 import NotFound from "@/pages/not-found";
 
@@ -95,15 +94,6 @@ function AppRouter() {
           <Layout>
             <ErrorBoundary>
               <ProjectDetail />
-            </ErrorBoundary>
-          </Layout>
-        </RequireAuth>
-      </Route>
-      <Route path="/resources">
-        <RequireAuth>
-          <Layout>
-            <ErrorBoundary>
-              <Resources />
             </ErrorBoundary>
           </Layout>
         </RequireAuth>

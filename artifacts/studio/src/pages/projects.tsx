@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useLocation } from "wouter";
-import { Plus, X, GripVertical, Pencil, Archive, ArchiveRestore, Trash2, MoreHorizontal } from "lucide-react";
+import { Plus, Pencil, Archive, ArchiveRestore, Trash2, MoreHorizontal } from "lucide-react";
 import { useListProjects, useCreateProject } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -28,17 +28,6 @@ const PROJECT_COLORS = [
   "#0f766e","#7c3aed","#f43f5e","#84cc16","#c084fc",
 ];
 
-const PHASE_SUGGESTIONS = [
-  "Discovery", "Vision", "Brand Identity", "Brand Standards",
-  "City Submittal", "Schematic Design", "Design Development",
-  "Construction Documents", "Permitting", "Bidding", "Construction Administration",
-];
-
-interface PhaseRow {
-  name: string;
-  budgetedHours: string;
-}
-
 const DEFAULT_FORM = {
   name: "", budgetAmount: "10000", color: PROJECT_COLORS[0],
 };
@@ -62,8 +51,6 @@ export default function Projects() {
   const [, navigate] = useLocation();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [formData, setFormData] = useState({ ...DEFAULT_FORM });
-  const [phases, setPhases] = useState<PhaseRow[]>([]);
-  const [customPhase, setCustomPhase] = useState("");
   const [filter, setFilter] = useState<string>("all");
   const [renameProject, setRenameProject] = useState<{ id: string; name: string } | null>(null);
   const [renameInput, setRenameInput] = useState("");
@@ -129,31 +116,13 @@ export default function Projects() {
 
   const set = (key: string, value: any) => setFormData((f) => ({ ...f, [key]: value }));
 
-  const addPhase = (name: string) => {
-    if (!name.trim()) return;
-    if (phases.find((p) => p.name.toLowerCase() === name.trim().toLowerCase())) return;
-    setPhases((p) => [...p, { name: name.trim(), budgetedHours: "0" }]);
-    setCustomPhase("");
-  };
-
-  const removePhase = (idx: number) => setPhases((p) => p.filter((_, i) => i !== idx));
-
-  const updatePhaseHours = (idx: number, hours: string) =>
-    setPhases((p) => p.map((ph, i) => (i === idx ? { ...ph, budgetedHours: hours } : ph)));
-
-  const totalPhaseHours = phases.reduce((sum, p) => sum + (parseFloat(p.budgetedHours) || 0), 0);
-
   const handleDialogOpen = (open: boolean) => {
     if (open) {
       const allColors = (projects as any[]).map((p: any) => p.color).filter(Boolean);
       const color = getUniqueColor(allColors);
       setFormData({ ...DEFAULT_FORM, color });
-      setPhases([]);
-      setCustomPhase("");
     } else {
       setFormData({ ...DEFAULT_FORM });
-      setPhases([]);
-      setCustomPhase("");
     }
     setIsDialogOpen(open);
   };
@@ -167,7 +136,6 @@ export default function Projects() {
           status: "active",
           budgetAmount: Number(formData.budgetAmount),
           color: formData.color,
-          phases: phases.map((p) => ({ name: p.name, budgetedHours: parseFloat(p.budgetedHours) || 0 })),
         } as any,
       },
       {
@@ -175,7 +143,6 @@ export default function Projects() {
           toast({ title: "Project created" });
           setIsDialogOpen(false);
           setFormData({ ...DEFAULT_FORM });
-          setPhases([]);
           queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
         },
         onError: () => toast({ title: "Failed to create project", variant: "destructive" }),
@@ -187,108 +154,47 @@ export default function Projects() {
   const archivedCount = allProjects.filter((p) => p.archivedAt).length;
   const activeProjects = showArchived ? allProjects : allProjects.filter((p) => !p.archivedAt);
   const filtered = filter === "all" ? activeProjects : activeProjects.filter((p) => p.status === filter);
-  const usedSuggestions = new Set(phases.map((p) => p.name.toLowerCase()));
 
   return (
     <div className="p-8 max-w-7xl mx-auto flex flex-col gap-8">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Projects</h1>
-          <p className="text-muted-foreground mt-1">Manage all active and past studio projects.</p>
+          <h1 className="text-sm font-medium text-muted-foreground">Projects</h1>
         </div>
 
         <Dialog open={isDialogOpen} onOpenChange={handleDialogOpen}>
           <DialogTrigger asChild>
             <Button><Plus className="mr-2 h-4 w-4" />New Project</Button>
           </DialogTrigger>
-          <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogContent className="max-w-sm">
             <DialogHeader>
               <DialogTitle>Create New Project</DialogTitle>
             </DialogHeader>
-            <div className="grid gap-5 py-2">
+            <div className="grid gap-4 py-2">
               <div className="grid gap-2">
                 <Label>Project Name *</Label>
-                <Input value={formData.name} onChange={(e) => set("name", e.target.value)} placeholder="e.g. Acme Brand Identity" />
+                <Input value={formData.name} onChange={(e) => set("name", e.target.value)} placeholder="e.g. Acme Brand Identity" autoFocus />
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="grid gap-2">
-                  <Label>Budget ($)</Label>
-                  <Input type="number" value={formData.budgetAmount} onChange={(e) => set("budgetAmount", e.target.value)} />
-                </div>
-                <div className="grid gap-2">
-                  <Label>Color</Label>
-                  <div className="flex gap-2 flex-wrap mt-1">
-                    {PROJECT_COLORS.map((c) => {
-                      const isUsed = (projects as any[]).some((p: any) => p.color === c);
-                      return (
-                        <button key={c}
-                          className={`w-6 h-6 rounded-full border-2 transition-all ${formData.color === c ? "border-white scale-110" : "border-transparent"} ${isUsed && formData.color !== c ? "opacity-40" : ""}`}
-                          style={{ backgroundColor: c }}
-                          onClick={() => set("color", c)}
-                        />
-                      );
-                    })}
-                  </div>
-                </div>
+              <div className="grid gap-2">
+                <Label>Budget ($)</Label>
+                <Input type="number" value={formData.budgetAmount} onChange={(e) => set("budgetAmount", e.target.value)} />
               </div>
-
-              {/* Phases */}
-              <div className="border-t pt-4 grid gap-3">
-                <div className="flex items-center justify-between">
-                  <Label className="text-base">Phases</Label>
-                  <span className="text-sm font-semibold text-foreground bg-muted/50 px-3 py-1 rounded-md">
-                    {totalPhaseHours}h total
-                  </span>
-                </div>
-
-                <div className="flex flex-wrap gap-1.5">
-                  {PHASE_SUGGESTIONS.filter((s) => !usedSuggestions.has(s.toLowerCase())).map((s) => (
-                    <button key={s}
-                      onClick={() => addPhase(s)}
-                      className="text-xs px-2.5 py-1 rounded-full border border-border text-muted-foreground hover:text-foreground hover:border-primary/50 hover:bg-primary/5 transition-colors">
-                      + {s}
-                    </button>
-                  ))}
-                </div>
-
-                {phases.length > 0 && (
-                  <div className="flex flex-col gap-2">
-                    {phases.map((ph, idx) => (
-                      <div key={idx} className="flex items-center gap-2 bg-muted/30 rounded-lg px-3 py-2">
-                        <GripVertical className="h-4 w-4 text-muted-foreground/40 shrink-0" />
-                        <span className="flex-1 text-sm font-medium">{ph.name}</span>
-                        <div className="flex items-center gap-1">
-                          <Input
-                            type="number" min="0"
-                            value={ph.budgetedHours}
-                            onChange={(e) => updatePhaseHours(idx, e.target.value)}
-                            className="w-20 h-7 text-sm text-right"
-                          />
-                          <span className="text-xs text-muted-foreground">hrs</span>
-                        </div>
-                        <button onClick={() => removePhase(idx)} className="text-muted-foreground hover:text-destructive ml-1">
-                          <X className="h-4 w-4" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                <div className="flex gap-2">
-                  <Input
-                    placeholder="Custom phase name…"
-                    value={customPhase}
-                    onChange={(e) => setCustomPhase(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === "Enter") addPhase(customPhase); }}
-                    className="flex-1"
-                  />
-                  <Button variant="outline" size="sm" onClick={() => addPhase(customPhase)} disabled={!customPhase.trim()}>
-                    Add
-                  </Button>
+              <div className="grid gap-2">
+                <Label>Color</Label>
+                <div className="flex gap-2 flex-wrap">
+                  {PROJECT_COLORS.map((c) => {
+                    const isUsed = (projects as any[]).some((p: any) => p.color === c);
+                    return (
+                      <button key={c}
+                        className={`w-6 h-6 rounded-full border-2 transition-all ${formData.color === c ? "border-white scale-110" : "border-transparent"} ${isUsed && formData.color !== c ? "opacity-40" : ""}`}
+                        style={{ backgroundColor: c }}
+                        onClick={() => set("color", c)}
+                      />
+                    );
+                  })}
                 </div>
               </div>
             </div>
-
             <DialogFooter>
               <Button variant="outline" onClick={() => handleDialogOpen(false)}>Cancel</Button>
               <Button onClick={handleCreate} disabled={createProject.isPending || !formData.name}>
@@ -464,7 +370,7 @@ export default function Projects() {
                         <Progress value={Math.min(pct, 100)} className="h-1.5" />
                       </div>
                     ) : (
-                      <p className="text-xs text-muted-foreground italic">No phases defined</p>
+                      <p className="text-xs text-muted-foreground italic">No hours budgeted</p>
                     )}
                   </div>
                 </Card>
@@ -480,7 +386,7 @@ export default function Projects() {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete "{deleteTarget?.name}"?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently delete this project along with all its phases, time entries, and allocations. This action cannot be undone.
+              This will permanently delete this project and all its data. This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

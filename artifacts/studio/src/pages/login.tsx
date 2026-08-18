@@ -49,7 +49,7 @@ export default function Login() {
     <div className="flex min-h-screen w-full flex-col items-center justify-center bg-background">
       <div className="w-full max-w-sm p-8">
         <div className="mb-8 text-center">
-          <h1 className="text-3xl font-bold tracking-tight text-foreground mb-1">
+          <h1 className="text-sm font-semibold tracking-wide uppercase text-foreground/70 mb-1">
             Margin
           </h1>
           <p className="text-muted-foreground text-sm">

@@ -9,7 +9,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
           <header className="flex h-14 items-center gap-4 border-b border-border bg-card px-4 lg:hidden shrink-0">
             <SidebarTrigger />
-            <div className="font-semibold">Studio OS</div>
+            <div className="text-sm font-semibold tracking-wide uppercase text-foreground/70">Margin</div>
           </header>
           <main className="flex-1 overflow-auto bg-background">
             {children}

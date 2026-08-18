@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { LayoutDashboard, FolderKanban, Users, Settings, LogOut } from "lucide-react";
+import { LayoutDashboard, FolderKanban, Settings, LogOut } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -46,7 +46,7 @@ export function AppSidebar() {
   return (
     <Sidebar>
       <SidebarHeader className="p-4">
-        <h2 className="text-xl font-bold tracking-tight text-sidebar-primary">Margin</h2>
+        <h2 className="text-sm font-semibold tracking-wide uppercase text-sidebar-foreground/70">Margin</h2>
       </SidebarHeader>
       <SidebarContent>
         <SidebarGroup>
@@ -69,16 +69,6 @@ export function AppSidebar() {
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
-              {(isPM || isAdmin) && (
-                <SidebarMenuItem>
-                  <SidebarMenuButton asChild isActive={location.startsWith("/resources")}>
-                    <Link href="/resources">
-                      <Users className="mr-2" />
-                      <span>Resources</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              )}
               {(isPM || isAdmin) && (
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild isActive={location.startsWith("/settings")}>

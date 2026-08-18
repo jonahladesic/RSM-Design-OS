@@ -27,27 +27,25 @@ export default function Dashboard() {
 
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-6">
-      <h1 className="text-2xl font-bold tracking-tight">
-        {user?.firstName ? `${user.firstName}'s Dashboard` : "Dashboard"}
-      </h1>
+      <h1 className="text-sm font-medium text-muted-foreground">Dashboard</h1>
 
       {/* Summary row */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 border-b pb-6">
         <div>
-          <div className="text-xs text-muted-foreground uppercase tracking-wide">Active Projects</div>
-          <div className="text-2xl font-bold mt-1">{activeProjects.length}</div>
+          <div className="text-xs text-muted-foreground">Active Projects</div>
+          <div className="text-lg font-semibold mt-1">{activeProjects.length}</div>
         </div>
         <div>
-          <div className="text-xs text-muted-foreground uppercase tracking-wide">Hours Logged</div>
-          <div className="text-2xl font-bold mt-1">{totalLogged}<span className="text-sm font-normal text-muted-foreground">h</span></div>
+          <div className="text-xs text-muted-foreground">Hours Logged</div>
+          <div className="text-lg font-semibold mt-1">{totalLogged}<span className="text-sm font-normal text-muted-foreground">h</span></div>
         </div>
         <div>
-          <div className="text-xs text-muted-foreground uppercase tracking-wide">Hours Budgeted</div>
-          <div className="text-2xl font-bold mt-1">{totalBudgeted}<span className="text-sm font-normal text-muted-foreground">h</span></div>
+          <div className="text-xs text-muted-foreground">Hours Budgeted</div>
+          <div className="text-lg font-semibold mt-1">{totalBudgeted}<span className="text-sm font-normal text-muted-foreground">h</span></div>
         </div>
         <div>
-          <div className="text-xs text-muted-foreground uppercase tracking-wide">Total Budget</div>
-          <div className="text-2xl font-bold mt-1">${totalBudget.toLocaleString()}</div>
+          <div className="text-xs text-muted-foreground">Total Budget</div>
+          <div className="text-lg font-semibold mt-1">${totalBudget.toLocaleString()}</div>
         </div>
       </div>
 
