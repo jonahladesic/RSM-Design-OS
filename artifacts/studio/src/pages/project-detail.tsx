@@ -100,7 +100,7 @@ export default function ProjectDetail() {
   if (!project) return <div className="p-8 text-destructive">Project not found</div>;
 
   const totalLogged = (timeblocks as any[]).reduce((sum: number, tb: any) => sum + tb.hours, 0);
-  const budget = parseFloat(project.budgetAmount) || 0;
+  const budget = parseFloat(String(project.budgetAmount ?? 0)) || 0;
   const effRate = totalLogged > 0 ? budget / totalLogged : 0;
 
   return (
